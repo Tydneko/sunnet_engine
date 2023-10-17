@@ -27,4 +27,10 @@ public:
     void ProcessMsgs(int max);
 private:
     shared_ptr<BaseMsg> PopMsg();
+
+public:
+    //exist in global queue
+    bool inGlobalQue_srv = false;
+    pthread_spinlock_t inGlobalQueLock_srv;
+    void SetSrvInGlobalQue(bool state);
 };

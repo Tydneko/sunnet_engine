@@ -10,7 +10,7 @@ public:
     };
     uint8_t type;
     char load_buf[999999]{};//检测内存泄露
-    virtual ~BaseMsg();
+    virtual ~BaseMsg(){};
 };
 
 class ServiceMsg : public BaseMsg {

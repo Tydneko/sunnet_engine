@@ -1,9 +1,11 @@
 #pragma once 
 #include <vector>
-#include "Worker.h"
 #include "Service.h"
+#include "Worker.h"
 #include <unordered_map>
 #define WORKER_NUM 3
+
+class Worker;
 
 class Sunnet{
 public:
@@ -28,4 +30,16 @@ public:
     void QuitService(uint32_t id);
 private:
     shared_ptr<Service> GetService(uint32_t id);
+
+private:
+    //全局队列
+    queue<shared_ptr<Service>> globalQueue;
+    int globalQueueLen = 0;
+    pthread_spinlock_t gloableLock;
+public:
+    void Send(uint32_t toId, shared_ptr<BaseMsg> msg);
+    shared_ptr<Service> PopGlobalQueue();
+    void PushGlobalQueue(shared_ptr<Service> srv);
+    //test
+    shared_ptr<BaseMsg> MakeMsg(uint32_t source, char* buff, int len);
 };
