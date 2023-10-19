@@ -2,6 +2,8 @@
 #include <vector>
 #include "Service.h"
 #include "Worker.h"
+#include "SocketWorker.h"
+#include "Conn.h"
 #include <unordered_map>
 #define WORKER_NUM 3
 
@@ -50,4 +52,18 @@ private:
 public:
     void CheckAndWeakUp();
     void WorkerWait();
+
+private:
+    SocketWorker* socketWorker;
+    thread* socketThread;
+private:
+    void StartSocketWorker();
+
+private:
+    unordered_map<uint32_t, shared_ptr<Conn>> conns_map;
+    pthread_rwlock_t connsLock;
+public:
+    int NewConn(int fd, uint32_t id, Conn::TYPE type);
+    shared_ptr<Conn> GetConn(int fd);
+    bool QuitConn(int fd);
 };
