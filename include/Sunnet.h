@@ -42,4 +42,12 @@ public:
     void PushGlobalQueue(shared_ptr<Service> srv);
     //test
     shared_ptr<BaseMsg> MakeMsg(uint32_t source, char* buff, int len);
+
+private:
+    pthread_mutex_t sleepMtx;
+    pthread_cond_t sleepCond;
+    int sleepCount = 0;
+public:
+    void CheckAndWeakUp();
+    void WorkerWait();
 };

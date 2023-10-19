@@ -16,6 +16,9 @@ void Sunnet::Start(){
     pthread_spin_init(&gloableLock, PTHREAD_PROCESS_PRIVATE);
 
     //worker threads
+    pthread_mutex_init(&sleepMtx, NULL);
+    pthread_cond_init(&sleepCond, NULL);
+
     StartWorkers();
 }
 
@@ -124,7 +127,12 @@ void Sunnet::Send(uint32_t toId, shared_ptr<BaseMsg> msg)
         inGlobalQue = true;
     }
     pthread_spin_unlock(&toSrv->inGlobalQueLock_srv);
-    //TODO 唤醒进程
+    
+    //TODO 唤醒线程
+    if(inGlobalQue)
+    {
+        CheckAndWeakUp();
+    }
 }
 
 shared_ptr<BaseMsg> Sunnet::MakeMsg(uint32_t source, char* buff, int len)
@@ -136,4 +144,28 @@ shared_ptr<BaseMsg> Sunnet::MakeMsg(uint32_t source, char* buff, int len)
     msg->buff = shared_ptr<char>(buff);
     msg->size = len;
     return msg;
+}
+
+void Sunnet::CheckAndWeakUp()
+{
+    //unsafe
+    if(sleepCount == 0)
+    {
+        return;
+    }
+
+    if(WORKER_NUM - sleepCount <= globalQueueLen)
+    {
+        cout << "Wakeup !" << endl;
+        pthread_cond_signal(&sleepCond);
+    }
+}
+
+void Sunnet::WorkerWait()
+{
+    pthread_mutex_lock(&sleepMtx);
+    sleepCount++;
+    pthread_cond_wait(&sleepCond, &sleepMtx);
+    sleepCount--;
+    pthread_mutex_unlock(&sleepMtx);
 }

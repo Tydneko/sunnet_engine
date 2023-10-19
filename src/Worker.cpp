@@ -11,7 +11,7 @@ void Worker::operator()()
         shared_ptr<Service> srv = Sunnet::inst->PopGlobalQueue();
         if(!srv)
         {
-            usleep(10000);
+            Sunnet::inst->WorkerWait();
         }else{
             srv->ProcessMsgs(eachNume);
             CheckAndPutGlobal(srv);
