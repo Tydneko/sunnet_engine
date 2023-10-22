@@ -11,12 +11,19 @@ void Sunnet::Start(){
     cout << "Hello Sunnet Engine!" << endl;
     //rwlock
     pthread_rwlock_init(&servicesLock, NULL);
+    pthread_rwlock_init(&connsLock, NULL);
 
     //global queue
     pthread_spin_init(&gloableLock, PTHREAD_PROCESS_PRIVATE);
 
     //worker threads
+    pthread_mutex_init(&sleepMtx, NULL);
+    pthread_cond_init(&sleepCond, NULL);
+
     StartWorkers();
+
+    //socket worker 
+    StartSocketWorker();
 }
 
 void Sunnet::StartWorkers(){
@@ -37,6 +44,13 @@ void Sunnet::Wait(){
     if(workerThread_vec[0]){
         workerThread_vec[0]->join();
     }
+}
+
+void Sunnet::StartSocketWorker()
+{
+    socketWorker = new SocketWorker();
+    socketWorker->Init();
+    socketThread = new thread(*socketWorker);
 }
 
 uint32_t Sunnet::NewService(shared_ptr<string> type){
@@ -82,6 +96,40 @@ shared_ptr<Service> Sunnet::GetService(uint32_t id){
     return srv;
 }
 
+int Sunnet::NewConn(int fd, uint32_t id, Conn::TYPE type)
+{
+    auto conn = make_shared<Conn>();
+    conn->fd = fd;
+    conn->serviceId = id;
+    conn->type = type;
+
+    pthread_rwlock_wrlock(&connsLock);
+    conns_map.emplace(fd, conn);
+    pthread_rwlock_unlock(&connsLock);
+    return fd;
+}
+
+shared_ptr<Conn> Sunnet::GetConn(int fd)
+{
+    shared_ptr<Conn> conn = nullptr;
+    pthread_rwlock_rdlock(&connsLock);
+    auto iter = conns_map.find(fd);
+    if(iter != conns_map.end()){
+        conn = iter->second;
+    }
+    pthread_rwlock_unlock(&connsLock);
+    return conn;
+}
+
+bool Sunnet::QuitConn(int fd)
+{
+    int ret;
+    pthread_rwlock_rdlock(&connsLock);
+    ret = conns_map.erase(fd);
+    pthread_rwlock_unlock(&connsLock);
+    return ret == 1;
+}
+
 //global message queue
 shared_ptr<Service> Sunnet::PopGlobalQueue()
 {
@@ -124,7 +172,12 @@ void Sunnet::Send(uint32_t toId, shared_ptr<BaseMsg> msg)
         inGlobalQue = true;
     }
     pthread_spin_unlock(&toSrv->inGlobalQueLock_srv);
-    //TODO 唤醒进程
+    
+    //TODO 唤醒线程
+    if(inGlobalQue)
+    {
+        CheckAndWeakUp();
+    }
 }
 
 shared_ptr<BaseMsg> Sunnet::MakeMsg(uint32_t source, char* buff, int len)
@@ -137,3 +190,28 @@ shared_ptr<BaseMsg> Sunnet::MakeMsg(uint32_t source, char* buff, int len)
     msg->size = len;
     return msg;
 }
+
+void Sunnet::CheckAndWeakUp()
+{
+    //unsafe
+    if(sleepCount == 0)
+    {
+        return;
+    }
+
+    if(WORKER_NUM - sleepCount <= globalQueueLen)
+    {
+        cout << "Wakeup !" << endl;
+        pthread_cond_signal(&sleepCond);
+    }
+}
+
+void Sunnet::WorkerWait()
+{
+    pthread_mutex_lock(&sleepMtx);
+    sleepCount++;
+    pthread_cond_wait(&sleepCond, &sleepMtx);
+    sleepCount--;
+    pthread_mutex_unlock(&sleepMtx);
+}
+
