@@ -1,5 +1,11 @@
 #include "Sunnet.h"
 #include <iostream>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 using namespace std;
 
 Sunnet* Sunnet::inst;
@@ -82,6 +88,11 @@ void Sunnet::QuitService(uint32_t id){
     services_map.erase(id);
     pthread_rwlock_unlock(&servicesLock);
 }
+
+void Sunnet::SetServicePort(uint32_t port, uint32_t serviceId)
+{
+    Sunnet::inst->Listen(port, serviceId);
+} 
 
 shared_ptr<Service> Sunnet::GetService(uint32_t id){
     shared_ptr<Service> srv = nullptr;
@@ -215,3 +226,48 @@ void Sunnet::WorkerWait()
     pthread_mutex_unlock(&sleepMtx);
 }
 
+int Sunnet::Listen(uint32_t port, uint32_t serviceId)
+{
+    int listenFd = socket(AF_INET, SOCK_STREAM, 0);
+    if(listenFd <= 0)
+    {
+        cout << "Listen error, create listenfd error." << endl;
+        // TODO ERR_TYPE.LISTEN.
+        return -1;
+    }
+
+    //non-blocking
+    fcntl(listenFd, F_SETFL, O_NONBLOCK);
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    int ret_bind = bind(listenFd, (struct sockaddr*)&addr, sizeof(addr));
+    if(-1 == ret_bind)
+    {
+        cout << "Listen error, bind error." << endl;
+        // TODO ERR_TYPE.LISTEN.
+        return -1;
+    }
+
+    int ret_listen = listen(listenFd, 64);
+    if(ret_listen < 0)
+    {
+        // TODO ERR_TYPE.LISTEN.
+        return -1;
+    }
+
+    NewConn(listenFd, serviceId, Conn::TYPE::LISTEN);
+    socketWorker->AddEvent(listenFd);
+    return listenFd;
+}
+
+void Sunnet::CloseConn(uint32_t fd)
+{
+    bool ret_QConn = QuitConn(fd);
+    close(fd);
+    if(ret_QConn)
+    {
+        socketWorker->RemoveEvent(fd);
+    }
+}

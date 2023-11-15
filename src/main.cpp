@@ -1,4 +1,5 @@
 #include "Sunnet.h"
+#include <unistd.h>
 
 void test(){
     auto pingType = make_shared<string>("ping");
@@ -13,10 +14,26 @@ void test(){
     Sunnet::inst->Send(pong, msg2);
 }
 
+void testScoket()
+{
+    int fd = Sunnet::inst->Listen(7070, 1);
+    sleep(10);
+    Sunnet::inst->CloseConn(fd);
+}
+
+void testEcho()
+{
+    auto echoType = make_shared<string>("echo");
+    uint32_t echo1 = Sunnet::inst->NewService(echoType);
+    Sunnet::inst->SetServicePort(7070, echo1);
+}
+
 int main(){
     new Sunnet();
     Sunnet::inst->Start();
-    test();
+    //test();
+    //testScoket();
+    testEcho();
     Sunnet::inst->Wait();
     return 0;
 }

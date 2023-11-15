@@ -2,6 +2,7 @@
 #include "Sunnet.h"
 #include <iostream>
 #include <unistd.h>
+#include <cstring>
 
 Service::Service(){
     //msg queue lock
@@ -57,16 +58,29 @@ void Service::OnInit(){
 }
 
 void Service::OnMsg(shared_ptr<BaseMsg> msg){   
-    //test
-    if(msg->type == BaseMsg::TYPE::SERVICE)
+    if(msg->type == BaseMsg::TYPE::SOCKET_ACCEPT)
     {
-        auto m = dynamic_pointer_cast<ServiceMsg>(msg);
-        cout << "[" << id_srv << "] OnMsg : " << m->buff <<endl;
-
-        auto msgRet = Sunnet::inst->MakeMsg(id_srv, new char[999999]{'p','i','n','g','\0'}, 999999);
-        Sunnet::inst->Send(m->source, msgRet);
-    }else{
-        cout << "[" << id_srv << "] OnMsg" << endl;
+        auto m = dynamic_pointer_cast<SocketAcceptMsg>(msg);
+        cout << "new conn " << m->clientFd << endl;
+    }
+    if(msg->type == BaseMsg::TYPE::SOCKET_RW)
+    {
+        auto m = dynamic_pointer_cast<SocketRWMsg>(msg);
+        if(m->isRead)
+        {
+            char buff_read[256];
+            int len_read = read(m->fd, &buff_read, 256);
+            if(len_read > 0)
+            {
+                char buff_write[4+len_read] = {"get:"};
+                strcat(buff_write, buff_read);
+                strcat(buff_write,"\n");
+                write(m->fd, &buff_write, 4+len_read);
+            }else{
+                cout << "close " << m->fd << strerror(errno) << endl;
+                Sunnet::inst->CloseConn(m->fd);
+            }
+        }
     }
 }
 
