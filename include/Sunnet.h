@@ -8,6 +8,7 @@
 #define WORKER_NUM 3
 
 class Worker;
+class SocketWorker;
 
 class Sunnet{
 public:
@@ -30,6 +31,7 @@ public:
 public:
     uint32_t NewService(shared_ptr<string> type);
     void QuitService(uint32_t id);
+    void SetServicePort(uint32_t port,uint32_t serviceId);
 private:
     shared_ptr<Service> GetService(uint32_t id);
 
@@ -66,4 +68,8 @@ public:
     int NewConn(int fd, uint32_t id, Conn::TYPE type);
     shared_ptr<Conn> GetConn(int fd);
     bool QuitConn(int fd);
+
+public:
+    int Listen(uint32_t port, uint32_t serviceId);
+    void CloseConn(uint32_t fd);
 };
